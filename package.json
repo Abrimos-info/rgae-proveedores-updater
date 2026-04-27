@@ -1,0 +1,16 @@
+{
+  "name": "rgae-proveedores-updater",
+  "version": "1.0.0",
+  "description": "Merges RGAE supplier data from Excel files into Opensearch documents and emits NDJSON to stdout.",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@opensearch-project/opensearch": "^2.13.0",
+    "dotenv": "^16.4.5",
+    "transliteration": "^2.3.5",
+    "xlsx": "^0.18.5"
+  }
+}
