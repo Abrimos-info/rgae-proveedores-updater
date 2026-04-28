@@ -30,6 +30,8 @@ for (const [key, value] of Object.entries({
 
 const client = new Client({ node: OPENSEARCH_URL });
 
+const MAX_ROWS = process.env.MAX_ROWS ? parseInt(process.env.MAX_ROWS, 10) : null;
+
 const FILES = {
   representantes_legales: 'representantes_legales.xlsx',
   comercios: 'comercios.xlsx',
@@ -118,11 +120,14 @@ async function main() {
     return master[id];
   };
 
+  const rowLimit = (rows) => MAX_ROWS ? Math.min(rows.length, MAX_ROWS + 1) : rows.length;
+
   // representantes_legales: [null, supplierId, repId, repName, ...]
   {
     const { rows, modifiedDate } = readSheet(filePaths.representantes_legales);
     bumpDate(modifiedDate);
-    for (let i = 1; i < rows.length; i++) {
+    const end = rowLimit(rows);
+    for (let i = 1; i < end; i++) {
       const row = rows[i] || [];
       const supplierId = normStr(row[1]);
       const repId = normStr(row[2]);
@@ -144,7 +149,8 @@ async function main() {
   {
     const { rows, modifiedDate } = readSheet(filePaths.comercios);
     bumpDate(modifiedDate);
-    for (let i = 1; i < rows.length; i++) {
+    const end = rowLimit(rows);
+    for (let i = 1; i < end; i++) {
       const row = rows[i] || [];
       const supplierId = normStr(row[1]);
       const commercialName = normStr(row[2]);
@@ -160,7 +166,8 @@ async function main() {
   {
     const { rows, modifiedDate } = readSheet(filePaths.especialidades);
     bumpDate(modifiedDate);
-    for (let i = 1; i < rows.length; i++) {
+    const end = rowLimit(rows);
+    for (let i = 1; i < end; i++) {
       const row = rows[i] || [];
       const supplierId = normStr(row[1]);
       const activityName = normStr(row[3]);
@@ -176,7 +183,8 @@ async function main() {
   {
     const { rows, modifiedDate } = readSheet(filePaths.registro_de_proveedores);
     bumpDate(modifiedDate);
-    for (let i = 1; i < rows.length; i++) {
+    const end = rowLimit(rows);
+    for (let i = 1; i < end; i++) {
       const row = rows[i] || [];
       const supplierId = normStr(row[1]);
       if (!supplierId) continue;
@@ -293,9 +301,36 @@ async function main() {
       console.error(`Error processing supplier ${supplierId}: ${err.message}`);
     }
   }
+
+  for (const repId of Object.keys(otherRepresentations)) {
+    try {
+      const resp = await client.search({
+        index: OPENSEARCH_INDEX,
+        body: {
+          query: { term: { [OPENSEARCH_ID_FIELD]: repId } },
+          size: 10,
+        },
+      });
+
+      const hits = (resp.body && resp.body.hits && resp.body.hits.hits) || [];
+      if (hits.length !== 1) continue;
+
+      const doc = hits[0]._source || {};
+      doc.updated_date = updatedDateIso;
+      doc.source = 'rgae_proveedores';
+
+      process.stdout.write(JSON.stringify(doc) + '\n');
+    } catch (err) {
+      console.error(`Error processing representative ${repId}: ${err.message}`);
+    }
+  }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+module.exports = { main };
